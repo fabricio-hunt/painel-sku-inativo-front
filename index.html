@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Painel de Consulta Bemol – SKUs Inativos</title>
+  <style>
+    :root {
+      --brand: #0285d1; /* cor principal */
+      --brand-600: #0277bd;
+      --bg: #f6f8fb;
+      --text: #0f172a;
+      --muted: #6b7280;
+      --card: #ffffff;
+      --ring: rgba(2,133,209,.35);
+      --ok: #16a34a;
+      --warn: #f59e0b;
+      --err: #dc2626;
+      --shadow: 0 10px 25px rgba(2, 133, 209, 0.12), 0 2px 6px rgba(15, 23, 42, 0.08);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      color: var(--text); background: radial-gradient(1000px 700px at 80% -10%, rgba(2,133,209,.08), transparent 60%),
+                              radial-gradient(900px 600px at -10% 10%, rgba(2,133,209,.06), transparent 60%), var(--bg);
+      min-height: 100dvh;
+    }
+    .wrap { max-width: 1200px; margin: 40px auto; padding: 0 20px; }
+
+    /* Header */
+    .header { display: flex; align-items: center; gap: 16px; margin-bottom: 18px; }
+    .logo { height: 65px; width: 120px; border-radius: 8px; object-fit: cover; box-shadow: 0 4px 12px rgba(2,133,209,.25); }
+    .title { font-size: clamp(20px, 3.2vw, 28px); font-weight: 800; letter-spacing: .2px; }
+    .subtitle { color: var(--muted); margin-top: 4px; }
+
+    /* Card */
+    .card { background: var(--card); border-radius: 18px; box-shadow: var(--shadow); overflow: hidden; border: 1px solid rgba(2,133,209,.08); }
+    .card-header { padding: 16px 18px; background: linear-gradient(180deg, rgba(2,133,209,.08), transparent); border-bottom: 1px solid rgba(2,133,209,.10); }
+    .toolbar { display: grid; grid-template-columns: 1fr auto; gap: 12px; }
+    .search { position: relative; }
+    .search input {
+      width: 100%; height: 48px; border-radius: 12px; border: 1px solid #e5e7eb; padding: 0 44px 0 44px; outline: none; font-size: 15px; background: white; box-shadow: inset 0 1px 0 rgba(2,133,209,.06);
+    }
+    .search input:focus { border-color: var(--brand); box-shadow: 0 0 0 6px var(--ring); }
+    .search .icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); opacity: .55; }
+    .search .clear { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); opacity: .65; cursor: pointer; display:none }
+    .btn {
+      appearance: none; border: none; background: var(--brand); color: #fff; font-weight: 700; height: 48px; padding: 0 18px; border-radius: 12px; cursor: pointer; box-shadow: 0 10px 16px rgba(2,133,209,.25), 0 2px 6px rgba(2,133,209,.20);
+    }
+    .btn:hover { background: var(--brand-600); }
+
+    /* Pills */
+    .pills { display:flex; gap:10px; flex-wrap: wrap; padding: 12px 18px 0; }
+    .pill { background: #f0f9ff; color: #0369a1; border: 1px solid rgba(2,133,209,.15); padding: 6px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; }
+
+    /* Table */
+    .table-wrap { width: 100%; overflow: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    thead th { position: sticky; top: 0; background: linear-gradient(180deg, #f8fafc, #f3f4f6); text-align: left; padding: 12px; border-bottom: 1px solid #e5e7eb; font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: #475569; }
+    tbody td { padding: 12px; border-bottom: 1px solid #eef2f7; white-space: nowrap; }
+    tbody tr:hover { background: #f8fbff; }
+    .sku { font-weight: 800; color: #0b5b8f; }
+    .badge { font-weight: 800; font-size: 11px; padding: 6px 8px; border-radius: 999px; border: 1px solid rgba(0,0,0,.06); }
+    .badge.err { background: #fff1f2; color: #b91c1c; border-color: rgba(220,38,38,.2) }
+    .badge.warn { background: #fffbeb; color: #b45309; border-color: rgba(245,158,11,.2) }
+    .badge.ok { background: #ecfdf5; color: #065f46; border-color: rgba(16,185,129,.2) }
+
+    /* Empty / Loading */
+    .state { text-align:center; padding: 40px 20px; color: var(--muted); }
+    .skeleton-row td { position: relative; }
+    .skeleton { height: 12px; width: 100%; display:block; border-radius: 6px; background: linear-gradient(90deg, #eef2f7, #f5f7fb, #eef2f7); background-size: 200% 100%; animation: shimmer 1.2s infinite; }
+    @keyframes shimmer { 0%{ background-position: 200% 0 } 100%{ background-position: -200% 0 } }
+
+    /* Footer */
+    .foot { display:flex; justify-content: space-between; align-items: center; gap:12px; padding: 10px 18px 16px; color: var(--muted); font-size: 12px; }
+    .pager { display:flex; gap: 8px; align-items:center; }
+    .pager button { height: 34px; border-radius: 8px; border: 1px solid #e5e7eb; background: #fff; padding: 0 10px; cursor: pointer; }
+    .pager button:disabled { opacity: .5; cursor: not-allowed; }
+
+    /* Toast */
+    .toast { position: fixed; right: 16px; bottom: 16px; background: #0b1220; color: #fff; padding: 12px 14px; border-radius: 12px; box-shadow: 0 12px 30px rgba(0,0,0,.22); display:none }
+
+    /* Mobile */
+    @media (max-width: 720px){ .toolbar{ grid-template-columns: 1fr } .pills{ padding-top: 8px } .wrap{ margin-top: 24px } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="header">
+     <!-- <img class="logo" src="https://i.imgur.com/CHFJwpw.png" alt="Logo Bemol" /> --> 
+      <img class="logo" src="https://bemolqa.vtexassets.com/assets/vtex/assets-builder/bemolqa.store-theme/15.0.16/images/bemol-logo___0e4ce7bac603e6a725fdc3b40ad03e13.svg" />
+      <div>
+        <div class="title">Painel de Consulta – SKUs Inativos</div>
+        <div class="subtitle">Busque e visualize SKUs inativos (Databricks) com visual limpo e rápido.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="toolbar">
+          <div class="search">
+            <svg class="icon" width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M21 21l-4.3-4.3M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z" stroke="#0b5b8f" stroke-width="2" stroke-linecap="round"/></svg>
+            <input id="q" placeholder="Buscar por SKU, nome ou categoria… (Enter para buscar)" />
+            <svg id="clearBtn" class="clear" width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="#64748b" stroke-width="2" stroke-linecap="round"/></svg>
+          </div>
+          <button id="searchBtn" class="btn">Consultar</button>
+        </div>
+        <div class="pills" id="pills">
+          <span class="pill">Status: <b>inativos</b></span>
+          <span class="pill" id="pillTotal">Total: –</span>
+          <span class="pill" id="pillAtualizacao">Atualização: –</span>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>SKU</th>
+              <th>Nome</th>
+              <th>Categoria</th>
+              <th>Motivo</th>
+              <th>Desde</th>
+              <th>Estoque</th>
+              <th>Preço</th>
+              <th>Últ. Atualização</th>
+            </tr>
+          </thead>
+          <tbody id="tbody">
+            <tr class="state" id="emptyRow"><td colspan="8">Digite sua busca e pressione <b>Enter</b> ou clique em <b>Consultar</b>.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="foot">
+        <div>Bemol • Databricks • Painel de consulta</div>
+        <div class="pager">
+          <button id="prev">Anterior</button>
+          <span id="pageLabel">Página 1</span>
+          <button id="next">Próxima</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <script>
+    /**
+     * ===== Integração Databricks (SQL Statements API) – Guia rápido =====
+     * 1) Troque DEMO para false para ativar a consulta real.
+     * 2) Preencha DATABRICKS_WORKSPACE_URL e DATABRICKS_TOKEN (ideal via proxy/variável de ambiente; evite expor no front!).
+     * 3) Informe o WAREHOUSE_ID e ajuste o SQL conforme seu catálogo/esquema/tabela.
+     * 4) Devido a CORS e sigilo do token, recomenda-se criar um backend proxy (ex: /api/skus-inativos?q=...) e o front chamar esse endpoint.
+     */
+
+    const DEMO = true; // ← mude para false para tentar integração direta (recomendado usar proxy backend)
+
+    // ======= Configurações Databricks (NÃO exponha isto em produção) =======
+    const DATABRICKS_WORKSPACE_URL = "https://<SEU-WORKSPACE>.azuredatabricks.net"; // ex.: https://adb-1234567890123456.17.azuredatabricks.net
+    const DATABRICKS_TOKEN = "dapiXXXXXXXXXXXXXXXXXXXXXXXX"; // use backend/proxy!
+    const WAREHOUSE_ID = "xxxxxxxxxxxxxxxx";
+
+    /** SQL de exemplo – ajuste nomes (catalog.schema.tabela) e colunas **/
+    const SQL_TEMPLATE = (q) => `
+      SELECT 
+        sku,
+        nome,
+        categoria,
+        motivo_inativacao AS motivo,
+        data_inativacao   AS desde,
+        estoque_atual     AS estoque,
+        preco,
+        updated_at        AS updated
+      FROM catalogo.produtos.skus
+      WHERE status = 'inativo'
+        AND (
+          CAST(sku AS STRING) ILIKE '%${q.replace(/'/g, "''")}%' OR
+          nome ILIKE '%${q.replace(/'/g, "''")}%' OR
+          categoria ILIKE '%${q.replace(/'/g, "''")}%' 
+        )
+      ORDER BY updated DESC
+      LIMIT 100
+    `;
+
+    // ======= UI helpers =======
+    const $ = (sel) => document.querySelector(sel);
+    const qInput = $('#q');
+    const btn = $('#searchBtn');
+    const clearBtn = $('#clearBtn');
+    const tbody = $('#tbody');
+    const pageLabel = $('#pageLabel');
+    const prevBtn = $('#prev');
+    const nextBtn = $('#next');
+    const pillTotal = $('#pillTotal');
+    const pillAtualizacao = $('#pillAtualizacao');
+    const toast = $('#toast');
+
+    let page = 1, pageSize = 20, currentRows = [], lastQuery = '';
+
+    function showToast(msg){
+      toast.textContent = msg; toast.style.display = 'block';
+      setTimeout(() => toast.style.display = 'none', 2800);
+    }
+
+    function setLoadingRows(){
+      tbody.innerHTML = '';
+      for (let i=0;i<6;i++){
+        const tr = document.createElement('tr'); tr.className = 'skeleton-row';
+        for (let c=0;c<8;c++){
+          const td = document.createElement('td');
+          const sk = document.createElement('span'); sk.className = 'skeleton';
+          td.appendChild(sk); tr.appendChild(td);
+        }
+        tbody.appendChild(tr);
+      }
+    }
+
+    function renderRows(rows){
+      tbody.innerHTML = '';
+      if (!rows.length){
+        const tr = document.createElement('tr'); tr.className = 'state';
+        const td = document.createElement('td'); td.colSpan = 8; td.innerHTML = 'Nenhum resultado para <b>"' + (lastQuery||'') + '"</b>.';
+        tr.appendChild(td); tbody.appendChild(tr); return;
+      }
+      const start = (page-1)*pageSize, end = start + pageSize;
+      for (const r of rows.slice(start, end)){
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td class="sku">${r.sku ?? '-'}</td>
+          <td>${r.nome ?? '-'}</td>
+          <td>${r.categoria ?? '-'}</td>
+          <td><span class="badge ${badgeByReason(r.motivo)}">${r.motivo ?? '-'}</span></td>
+          <td>${fmtDate(r.desde)}</td>
+          <td>${fmtNumber(r.estoque)}</td>
+          <td>R$ ${fmtMoney(r.preco)}</td>
+          <td>${fmtDateTime(r.updated)}</td>
+        `;
+        tbody.appendChild(tr);
+      }
+      pageLabel.textContent = `Página ${page}`;
+      prevBtn.disabled = page === 1;
+      nextBtn.disabled = page * pageSize >= rows.length;
+      pillTotal.textContent = `Total: ${rows.length}`;
+      const lastUp = rows.reduce((acc, r) => Math.max(acc, new Date(r.updated||0).getTime()), 0);
+      pillAtualizacao.textContent = lastUp ? `Atualização: ${new Date(lastUp).toLocaleString('pt-BR')}` : 'Atualização: –';
+    }
+
+    function badgeByReason(m){
+      if(!m) return 'warn';
+      const s = (m+'').toLowerCase();
+      if (s.includes('sem estoque') || s.includes('ruptura')) return 'warn';
+      if (s.includes('descontinu')) return 'ok';
+      if (s.includes('erro') || s.includes('bloqueio')) return 'err';
+      return 'warn';
+    }
+
+    const fmtNumber = (v) => (v==null?'-': Number(v).toLocaleString('pt-BR'));
+    const fmtMoney = (v) => (v==null?'-': Number(v).toFixed(2).toLocaleString('pt-BR'));
+    const fmtDate = (v) => v? new Date(v).toLocaleDateString('pt-BR') : '-';
+    const fmtDateTime = (v) => v? new Date(v).toLocaleString('pt-BR') : '-';
+
+    // ======= Databricks – chamada direta (recomendado usar PROXY em produção) =======
+    async function queryDatabricks(q){
+      // Statements API: https://docs.databricks.com/api/workspace/statementexecution
+      const sql = SQL_TEMPLATE(q);
+      const startRes = await fetch(`${DATABRICKS_WORKSPACE_URL}/api/2.0/sql/statements`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${DATABRICKS_TOKEN}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          statement: sql,
+          warehouse_id: WAREHOUSE_ID,
+          wait_timeout: '30s', // aguarda um pouco antes do polling
+          on_wait_timeout: 'CONTINUE'
+        })
+      });
+      if (!startRes.ok) throw new Error('Falha ao iniciar consulta (' + startRes.status + ')');
+      const started = await startRes.json();
+      const stmtId = started?.statement_id || started?.id;
+      if (!stmtId) throw new Error('ID de statement não retornado');
+
+      // Polling até SUCCEEDED/FAILED
+      let status = started?.status?.state || started?.status;
+      let data = started;
+      const t0 = Date.now();
+      while (!['SUCCEEDED','FAILED','CANCELED'].includes(status)){
+        await new Promise(r => setTimeout(r, 800));
+        const res = await fetch(`${DATABRICKS_WORKSPACE_URL}/api/2.0/sql/statements/${stmtId}`, {
+          headers: { 'Authorization': `Bearer ${DATABRICKS_TOKEN}` }
+        });
+        if (!res.ok) throw new Error('Falha ao obter resultado (' + res.status + ')');
+        data = await res.json();
+        status = data?.status?.state || data?.status;
+        if (Date.now()-t0 > 25000) throw new Error('Timeout aguardando Databricks');
+      }
+      if (status !== 'SUCCEEDED') throw new Error('Consulta não sucedida: ' + status);
+
+      // Converte rowset para objetos
+      const cols = (data?.manifest?.schema?.columns || []).map(c => c.name);
+      const rows = (data?.result?.data_array || []).map(arr => Object.fromEntries(arr.map((v,i)=> [cols[i], v])));
+      return rows;
+    }
+
+    // ======= Mock para DEMO (dados fake) =======
+    function fakeData(q){
+      const base = [
+        { sku: '100200', nome: 'Fone Bluetooth Bemol X', categoria: 'Áudio', motivo: 'Descontinuado pelo fornecedor', desde: '2024-09-10', estoque: 0, preco: 199.9, updated: '2025-10-20T10:22:00Z' },
+        { sku: '100201', nome: 'Notebook 15" Série A', categoria: 'Informática', motivo: 'Sem estoque prolongado', desde: '2025-03-01', estoque: 0, preco: 3299.0, updated: '2025-10-12T09:00:00Z' },
+        { sku: '100202', nome: 'Smartwatch Fit Pro', categoria: 'Wearables', motivo: 'Erro cadastro / bloqueio', desde: '2025-07-05', estoque: 12, preco: 899.0, updated: '2025-10-28T17:30:00Z' },
+        { sku: '100203', nome: 'TV 55" 4K Ultra', categoria: 'TV e Vídeo', motivo: 'Descontinuado pela marca', desde: '2024-12-20', estoque: 0, preco: 2499.9, updated: '2025-09-30T14:05:00Z' },
+        { sku: '100204', nome: 'Câmera Action 4', categoria: 'Fotografia', motivo: 'Sem estoque', desde: '2025-08-18', estoque: 0, preco: 1599.0, updated: '2025-10-05T12:00:00Z' },
+        { sku: '100205', nome: 'Console NextGen', categoria: 'Games', motivo: 'Ruptura de fornecedor', desde: '2025-05-28', estoque: 0, preco: 3499.0, updated: '2025-10-15T12:00:00Z' },
+        { sku: '100206', nome: 'Impressora Laser Pro', categoria: 'Periféricos', motivo: 'Descontinuado', desde: '2025-01-11', estoque: 3, preco: 1299.9, updated: '2025-10-01T08:10:00Z' }
+      ];
+      if (!q) return base;
+      const s = q.toLowerCase();
+      return base.filter(r => String(r.sku).includes(s) || (r.nome||'').toLowerCase().includes(s) || (r.categoria||'').toLowerCase().includes(s));
+    }
+
+    // ======= Busca =======
+    async function search(){
+      const q = (qInput.value || '').trim();
+      lastQuery = q;
+      setLoadingRows();
+      try{
+        let rows = [];
+        if (DEMO){
+          await new Promise(r=> setTimeout(r, 600));
+          rows = fakeData(q);
+        } else {
+          rows = await queryDatabricks(q);
+        }
+        currentRows = rows;
+        page = 1; renderRows(currentRows);
+        showToast(`Encontrados ${rows.length} SKU(s) inativos`);
+        clearBtn.style.display = q ? 'block' : 'none';
+      } catch(err){
+        console.error(err);
+        tbody.innerHTML = `<tr class="state"><td colspan="8">Ocorreu um erro ao consultar. <br/><small>${err.message||err}</small></td></tr>`;
+        showToast('Erro na consulta. Verifique configurações.');
+      }
+    }
+
+    // ======= Eventos =======
+    btn.addEventListener('click', search);
+    qInput.addEventListener('keydown', (e)=>{ if (e.key === 'Enter') search(); });
+    qInput.addEventListener('input', ()=>{ clearBtn.style.display = qInput.value? 'block' : 'none'; });
+    clearBtn.addEventListener('click', ()=>{ qInput.value=''; clearBtn.style.display = 'none'; qInput.focus(); });
+    prevBtn.addEventListener('click', ()=>{ if (page>1){ page--; renderRows(currentRows); } });
+    nextBtn.addEventListener('click', ()=>{ if (page*pageSize < currentRows.length){ page++; renderRows(currentRows); } });
+
+    // Primeira renderização
+    renderRows([]);
+  </script>
+</body>
+</html>
